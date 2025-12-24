@@ -1,5 +1,5 @@
 
-# app_cloud_pretty.py — Versão com UI mais bonita para Streamlit Cloud
+# app_cloud_pretty.py — Versão com UI mais bonita para Streamlit Cloud (corrigida)
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -33,10 +33,8 @@ st.markdown(f"""
   --pm-text: {PALETA['texto']};
 }}
 
-/* fundo geral */
 .stApp {{ background-color: var(--pm-bg); }}
 
-/* cabeçalho fixo */
 .pm-sticky {{
   position: sticky; top: 0; z-index: 9999;
   background: #ffffff; border-bottom: 1px solid #e8edf3;
@@ -50,31 +48,23 @@ st.markdown(f"""
 .pm-title {{ color:var(--pm-text); font-weight:800; font-size:20px; margin:0; }}
 .pm-subtitle {{ color:#50607a; font-size:13px; margin:0; }}
 
-/* estilização da barra lateral */
 section[data-testid="stSidebar"] > div {{
   background: #ffffff; border-right: 1px solid #e8edf3;
 }}
 
-/* botões primários */
 .stButton>button {{
   background: var(--pm-blue); color:#fff; border-radius:8px; border:0;
 }}
 .stButton>button:hover {{ filter: brightness(0.95); }}
 
-/* inputs */
-.stSelectbox, .stMultiSelect, .stTextInput {{
-  font-size: 14px;
-}}
+.stSelectbox, .stMultiSelect, .stTextInput {{ font-size: 14px; }}
 
-/* scrollbars bonitos */
 ::-webkit-scrollbar {{ width: 10px; height:10px; }}
 ::-webkit-scrollbar-track {{ background: #eef2f7; }}
 ::-webkit-scrollbar-thumb {{ background: #c7d1e0; border-radius: 6px; }}
 ::-webkit-scrollbar-thumb:hover {{ background: #a9b7ca; }}
 html, body {{ scrollbar-width: thin; scrollbar-color: #c7d1e0 #eef2f7; }}
 
-/* tabela */
-/* container da tabela: cantos arredondados */
 [data-testid="stTable"] {{ border-radius: 10px; overflow:hidden; }}
 </style>
 """, unsafe_allow_html=True)
@@ -82,7 +72,6 @@ html, body {{ scrollbar-width: thin; scrollbar-color: #c7d1e0 #eef2f7; }}
 # =========================
 # HELPERS
 # =========================
-
 def safe_rerun():
     if hasattr(st, "rerun"):
         st.rerun()
@@ -92,7 +81,6 @@ def safe_rerun():
         except Exception:
             pass
 
-
 def clear_query_params():
     try:
         if hasattr(st, "query_params"):
@@ -101,7 +89,6 @@ def clear_query_params():
             st.experimental_set_query_params()
     except Exception:
         pass
-
 
 def kpi(label, value):
     st.metric(label, value if value is not None else "-")
@@ -129,7 +116,6 @@ COLUNAS_CHAVE_VAZIAS = [
 # =========================
 # TRATAMENTO DE DADOS
 # =========================
-
 def listar_abas_excel(caminho_excel: str) -> list:
     if not os.path.exists(caminho_excel):
         raise FileNotFoundError(f"Arquivo não encontrado: {caminho_excel}")
@@ -141,7 +127,6 @@ def listar_abas_excel(caminho_excel: str) -> list:
         return xls.sheet_names
     else:
         return ["(arquivo CSV - sem abas)"]
-
 
 def to_numeric_safe(x) -> float:
     try:
@@ -157,7 +142,6 @@ def to_numeric_safe(x) -> float:
     except Exception:
         return float("nan")
 
-
 def formatar_moeda_val(x) -> str:
     try:
         val = to_numeric_safe(x)
@@ -168,14 +152,12 @@ def formatar_moeda_val(x) -> str:
     except Exception:
         return ""
 
-
 def formatar_moeda_df(df: pd.DataFrame, cols: list) -> pd.DataFrame:
     f = df.copy()
     for c in cols:
         if c in f.columns:
             f[c] = f[c].apply(formatar_moeda_val)
     return f
-
 
 def limpar_vazios_texto(df: pd.DataFrame, cols: list) -> pd.DataFrame:
     f = df.copy()
@@ -184,7 +166,6 @@ def limpar_vazios_texto(df: pd.DataFrame, cols: list) -> pd.DataFrame:
             f[c] = f[c].astype(str).str.strip()
             f[c] = f[c].replace({"": pd.NA, "nan": pd.NA, "None": pd.NA, "NONE": pd.NA})
     return f
-
 
 def filtrar_linhas_uteis(df: pd.DataFrame, exigir_qualquer_preenchido: list, aplicar_drop_all_empty: bool = True) -> pd.DataFrame:
     f = df.copy()
@@ -231,7 +212,6 @@ def carregar_base(caminho_excel: str, aba: str, exigir_qualquer_preenchido: list
     df = filtrar_linhas_uteis(df, exigir_qualquer_preenchido, aplicar_drop_all_empty)
     return df
 
-
 def aplicar_filtros(df: pd.DataFrame, coord_sel, forn_sel, projeto_sel, status_ticket_sel, status_pgto_sel,
                     status_rc_sel, prazo_sel, prazo_texto, loja_texto, pedido_texto, busca_texto):
     f = df.copy()
@@ -260,12 +240,11 @@ def aplicar_filtros(df: pd.DataFrame, coord_sel, forn_sel, projeto_sel, status_t
         f = f[f.apply(lambda r: q in (" ".join(r.astype(str))).lower(), axis=1)]
     return f
 
-
 def agregar(df: pd.DataFrame, eixo: str, ref_data_col: str = None, excluir_nulos_eixo: bool = False) -> pd.DataFrame:
     f = df.copy()
     if eixo == "MÊS":
         if ref_data_col not in f.columns:
-            raise ValueError(f"A coluna de data '{ref_data_col}' não existe.")
+            raise ValueError("A coluna de data '{}' não existe.".format(ref_data_col))
         f["_REF_DATA"] = pd.to_datetime(f[ref_data_col], errors="coerce")
         f["MÊS"] = f["_REF_DATA"].dt.strftime("%Y-%m")
         grupo = "MÊS"
@@ -342,9 +321,7 @@ with st.expander("🧪 Seleção da aba / Saneamento da base", expanded=False):
         idx_default = abas.index(ABA_PADRAO) if ABA_PADRAO in abas else 0
         aba_sel = st.selectbox("Aba do Excel", abas, index=idx_default)
     except Exception as e:
-        st.error(f"Falha ao listar abas.
-
-**Erro**: {e}")
+        st.error("Falha ao listar abas.\n\n**Erro**: {}".format(e))
         aba_sel = ABA_PADRAO
 
     aplicar_drop_all_empty = st.checkbox("Remover linhas totalmente vazias (recomendado)", value=True)
@@ -358,9 +335,7 @@ with st.expander("🧪 Seleção da aba / Saneamento da base", expanded=False):
 try:
     df = carregar_base(CAMINHO_EXCEL, aba_sel, exigir_campos, aplicar_drop_all_empty)
 except Exception as e:
-    st.error(f"❌ Não consegui abrir a base.
-
-**Erro**: {e}")
+    st.error("❌ Não consegui abrir a base.\n\n**Erro**: {}".format(e))
     st.stop()
 
 if df.empty:
@@ -401,7 +376,7 @@ if 'reset_solicitado' not in st.session_state:
 
 if limpar:
     st.session_state['reset_solicitado'] = True
-    loja = ""; pedido = ""; busca_livre = ""; prazo_sel = []; prazo_texto = ""; coord = []; forn = []; projeto = []; status_rc = []; status_ticket = []; status_pgto = []
+    loja = ""; pedido = ""; busca_livre = ""; prazo_sel = ""; prazo_texto = ""; coord = []; forn = []; projeto = []; status_rc = []; status_ticket = []; status_pgto = []
 
 filtrado = aplicar_filtros(
     df=df,
@@ -411,7 +386,7 @@ filtrado = aplicar_filtros(
     status_ticket_sel=status_ticket,
     status_pgto_sel=status_pgto,
     status_rc_sel=status_rc,
-    prazo_sel=prazo_sel,
+    prazo_sel=prazo_sel if isinstance(prazo_sel, list) else [],
     prazo_texto=prazo_texto,
     loja_texto=loja,
     pedido_texto=pedido,
@@ -424,7 +399,6 @@ filtrado = aplicar_filtros(
 st.subheader("📍 Indicadores")
 kp1, kp2, kp3, kp4, kp5 = st.columns(5)
 
-# contagens principais
 total_reg = len(filtrado)
 no_prazo = None; fora_prazo = None
 if "PRAZO" in filtrado.columns:
@@ -436,7 +410,6 @@ aguardando_prog = None
 if "STATUS RESULT1" in filtrado.columns:
     aguardando_prog = filtrado["STATUS RESULT1"].astype(str).str.lower().str.contains("programa").sum()
 
-# somatórios
 valor_rc_total = None
 valor_pgto_total = None
 valor_bi_total = None
@@ -468,16 +441,13 @@ st.subheader("📑 Tabela detalhada (filtrada)")
 cols_presentes = [c for c in COLUNAS_BASE if c in filtrado.columns]
 filtrado_restrito = filtrado[cols_presentes].copy()
 
-# ordenação por data
 for chave in ["DATA_PGTO_SAP","DATA CRIAÇÃO TICKET"]:
     if chave in filtrado_restrito.columns:
         filtrado_restrito = filtrado_restrito.sort_values(by=chave, ascending=True, na_position="last")
         break
 
-# formato R$ para exibição
 filtrado_restrito_fmt = formatar_moeda_df(filtrado_restrito, ["VALOR RC","VALOR A PAGAR","VALOR BI"])
 
-# exibição com altura e container width
 if filtrado_restrito_fmt.empty:
     st.warning("Nenhum registro após aplicação dos filtros. Ajuste os filtros e tente novamente.")
 else:
@@ -487,7 +457,6 @@ else:
         height=520
     )
 
-# exportar CSV
 st.download_button(
     label="⬇️ Baixar resultado (CSV)",
     data=filtrado_restrito.to_csv(index=False, sep=";", encoding="utf-8-sig"),
@@ -505,11 +474,9 @@ try:
     import plotly.express as px
     import plotly.io as pio
 
-    # tema e paleta
     pio.templates.default = "plotly_white"
     pm_palette = [PALETA['primaria'], PALETA['secundaria'], PALETA['acento'], "#6B7A99", "#9ADBE8", "#FFC48A"]
 
-    # Agregação
     col_a, col_b, col_c, col_d = st.columns(4)
     with col_a:
         eixo = st.selectbox("Eixo de análise", ["MÊS", "PROJETO", "COORDENADOR"], index=0)
@@ -531,13 +498,12 @@ try:
             excluir_nulos_eixo=excluir_nulos_eixo
         )
     except Exception as e:
-        st.error(f"Erro ao agregar: {e}")
+        st.error("Erro ao agregar: {}".format(e))
         agreg = pd.DataFrame()
 
     if not agreg.empty and ordenar_por in agreg.columns and eixo != "MÊS":
         agreg = agreg.sort_values(ordenar_por, ascending=False)
 
-    # gráfico de barras
     if not agreg.empty:
         fig_bar = px.bar(
             agreg,
@@ -555,7 +521,6 @@ try:
         )
         st.plotly_chart(fig_bar, use_container_width=True)
 
-        # gráfico de pizza (donut)
         fig_pie = px.pie(
             agreg,
             names=agreg.columns[0], values="QTD_TICKETS",
@@ -569,7 +534,7 @@ try:
         st.info("Adapte os filtros acima para habilitar as visualizações.")
 
 except Exception as e:
-    st.warning(f"Plotly não está instalado ou houve erro ao renderizar os gráficos. Detalhe: {e}")
+    st.warning("Plotly não está instalado ou houve erro ao renderizar os gráficos. Detalhe: {}".format(e))
 
 # =========================
 # AÇÕES DE CACHE
@@ -580,4 +545,3 @@ with col_a1:
         st.cache_data.clear(); safe_rerun()
 with col_a2:
     st.caption("Após substituir a planilha no GitHub, clique em **Atualizar cache** para recarregar os dados.")
-
