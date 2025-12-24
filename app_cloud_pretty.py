@@ -1,5 +1,5 @@
 
-# app_cloud_pretty.py — Versão com UI mais bonita para Streamlit Cloud (corrigida)
+# app_cloud_pretty.py — Versão com UI mais bonita para Streamlit Cloud (atualizada + normalização de nomes)
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -15,10 +15,10 @@ st.set_page_config(
 )
 
 PALETA = {
-    "primaria": "#0A6EB5",  # azul Pague Menos
+    "primaria": "#0A6EB5",   # azul Pague Menos
     "secundaria": "#00A6A6", # teal
-    "acento": "#FF6B00",    # laranja
-    "fundo": "#F7F9FC",     # fundo
+    "acento": "#FF6B00",     # laranja
+    "fundo": "#F7F9FC",      # fundo
     "texto": "#222222",      # texto
 }
 
@@ -96,7 +96,7 @@ def kpi(label, value):
 # =========================
 # ARQUIVO DA BASE / ABA PADRÃO
 # =========================
-CAMINHO_EXCEL = "BASE CONTROLE DE PAGAMENTOS.xlsx"  # mantenha no repositório
+CAMINHO_EXCEL = "BASE CONTROLE DE PAGAMENTOS.xlsx"  # mantenha no repositório/pasta
 ABA_PADRAO = "SOLICITAÇÃO DE PAGAMENTO"
 
 # =========================
@@ -105,13 +105,16 @@ ABA_PADRAO = "SOLICITAÇÃO DE PAGAMENTO"
 COLUNAS_BASE = [
     "EMP","FILIAL","LOJA","CNPJ","COORDENADOR","PROJETO","SERVIÇO","NOTA","FORNECEDOR",
     "VALOR RC","VALOR A PAGAR","VALOR BI","STATUS RC","PEDIDO","CHAMADO","DATA_PGTO_SAP",
-    "MIRO","STATUS RESULT1","DATA CRIAÇÃO TICKET","PRAZO"
+    "MIRO","STATUS RESULT1","DATA CRIAÇÃO TICKET","PRAZO","DATA CRIAÇÃO TICKET BR","DATA CRIAÇÃO RC"
 ]
 
 COLUNAS_CHAVE_VAZIAS = [
     "EMP","FILIAL","LOJA","CNPJ","COORDENADOR","PROJETO","SERVIÇO","NOTA","FORNECEDOR",
     "STATUS RC","PEDIDO","CHAMADO","STATUS RESULT1","PRAZO"
 ]
+
+# NOVO: colunas categóricas que serão normalizadas (UPPER)
+CATEGORIAS_NORMALIZAR = ["COORDENADOR", "FORNECEDOR", "PROJETO"]
 
 # =========================
 # TRATAMENTO DE DADOS
@@ -167,6 +170,20 @@ def limpar_vazios_texto(df: pd.DataFrame, cols: list) -> pd.DataFrame:
             f[c] = f[c].replace({"": pd.NA, "nan": pd.NA, "None": pd.NA, "NONE": pd.NA})
     return f
 
+# NOVO: normalização de categorias (UPPER + trim + colapsar espaços)
+def normalizar_categorias(df: pd.DataFrame, cols: list) -> pd.DataFrame:
+    f = df.copy()
+    for c in cols:
+        if c in f.columns:
+            # manter NaN
+            mask_na = f[c].isna()
+            s = f[c].astype(str).str.strip()
+            s = s.str.replace(r"\s+", " ", regex=True)
+            s = s.str.upper()
+            s[mask_na] = pd.NA  # recoloca NaN onde era NaN
+            f[c] = s
+    return f
+
 def filtrar_linhas_uteis(df: pd.DataFrame, exigir_qualquer_preenchido: list, aplicar_drop_all_empty: bool = True) -> pd.DataFrame:
     f = df.copy()
     if aplicar_drop_all_empty:
@@ -199,9 +216,14 @@ def carregar_base(caminho_excel: str, aba: str, exigir_qualquer_preenchido: list
     else:
         df = pd.read_csv(caminho_excel, sep=";", encoding="utf-8")
 
+    # cabeçalhos em UPPER
     df.columns = [str(c).strip().upper() for c in df.columns]
+    # saneamento de texto
     df = limpar_vazios_texto(df, list(set(COLUNAS_CHAVE_VAZIAS + COLUNAS_BASE)))
+    # NOVO: normalizar categorias (une 'HENRIQUE' e 'Henrique' etc.)
+    df = normalizar_categorias(df, CATEGORIAS_NORMALIZAR)
 
+    # datas
     for c in ["DATA_PGTO_SAP","DATA CRIAÇÃO TICKET","DATA CRIAÇÃO RC","DATA CRIAÇÃO TICKET BR"]:
         if c in df.columns:
             try:
@@ -209,6 +231,7 @@ def carregar_base(caminho_excel: str, aba: str, exigir_qualquer_preenchido: list
             except Exception:
                 pass
 
+    # linhas úteis
     df = filtrar_linhas_uteis(df, exigir_qualquer_preenchido, aplicar_drop_all_empty)
     return df
 
@@ -332,22 +355,12 @@ with st.expander("🧪 Seleção da aba / Saneamento da base", expanded=False):
     )
     st.caption("Evita contar linhas lixo com formatação ou fórmulas sem dados.")
 
-try:
-    df = carregar_base(CAMINHO_EXCEL, aba_sel, exigir_campos, aplicar_drop_all_empty)
-except Exception as e:
-    st.error("❌ Não consegui abrir a base.\n\n**Erro**: {}".format(e))
-    st.stop()
-
-if df.empty:
-    st.warning("⚠️ A aba selecionada, após saneamento, ficou **vazia**. Ajuste os critérios e clique em **Atualizar cache**.")
-    st.stop()
-
 # =========================
-# FILTROS LATERAIS (com form)
+# FILTROS LATERAIS + FORM
 # =========================
 st.sidebar.header("🎛️ Filtros")
 with st.sidebar.form("filtros_form"):
-    colunas = df.columns.tolist()
+    colunas = df.columns.tolist() if 'df' in locals() else []
     coord = st.multiselect("Coordenador", sorted(df["COORDENADOR"].dropna().unique().tolist())) if "COORDENADOR" in colunas else []
     forn = st.multiselect("Fornecedor", sorted(df["FORNECEDOR"].dropna().unique().tolist())) if "FORNECEDOR" in colunas else []
     projeto = st.multiselect("Projeto", sorted(df["PROJETO"].dropna().unique().tolist())) if "PROJETO" in colunas else []
@@ -371,12 +384,19 @@ with st.sidebar.form("filtros_form"):
     aplicar = c1.form_submit_button("Aplicar filtros")
     limpar = c2.form_submit_button("Limpar filtros")
 
+# Reset rápido
 if 'reset_solicitado' not in st.session_state:
     st.session_state['reset_solicitado'] = False
-
 if limpar:
     st.session_state['reset_solicitado'] = True
-    loja = ""; pedido = ""; busca_livre = ""; prazo_sel = ""; prazo_texto = ""; coord = []; forn = []; projeto = []; status_rc = []; status_ticket = []; status_pgto = []
+    loja = ""; pedido = ""; busca_livre = ""; prazo_sel = []; prazo_texto = ""; coord = []; forn = []; projeto = []; status_rc = []; status_ticket = []; status_pgto = []
+
+# Carrega e aplica filtros
+try:
+    df = carregar_base(CAMINHO_EXCEL, aba_sel, exigir_campos, aplicar_drop_all_empty)
+except Exception as e:
+    st.error("❌ Não consegui abrir a base.\n\n**Erro**: {}".format(e))
+    st.stop()
 
 filtrado = aplicar_filtros(
     df=df,
@@ -386,7 +406,7 @@ filtrado = aplicar_filtros(
     status_ticket_sel=status_ticket,
     status_pgto_sel=status_pgto,
     status_rc_sel=status_rc,
-    prazo_sel=prazo_sel if isinstance(prazo_sel, list) else [],
+    prazo_sel=prazo_sel,
     prazo_texto=prazo_texto,
     loja_texto=loja,
     pedido_texto=pedido,
@@ -410,18 +430,12 @@ aguardando_prog = None
 if "STATUS RESULT1" in filtrado.columns:
     aguardando_prog = filtrado["STATUS RESULT1"].astype(str).str.lower().str.contains("programa").sum()
 
-valor_rc_total = None
 valor_pgto_total = None
-valor_bi_total = None
-for c in ["VALOR RC","VALOR A PAGAR","VALOR BI"]:
-    if c in filtrado.columns:
-        try:
-            tmp = filtrado[c].apply(to_numeric_safe).sum()
-            if c == "VALOR RC": valor_rc_total = tmp
-            if c == "VALOR A PAGAR": valor_pgto_total = tmp
-            if c == "VALOR BI": valor_bi_total = tmp
-        except Exception:
-            pass
+if "VALOR A PAGAR" in filtrado.columns:
+    try:
+        valor_pgto_total = filtrado["VALOR A PAGAR"].apply(to_numeric_safe).sum()
+    except Exception:
+        pass
 
 with kp1: kpi("Total de registros", f"{total_reg}")
 with kp2: kpi("No Prazo", f"{no_prazo}" if no_prazo is not None else None)
@@ -477,18 +491,20 @@ try:
     pio.templates.default = "plotly_white"
     pm_palette = [PALETA['primaria'], PALETA['secundaria'], PALETA['acento'], "#6B7A99", "#9ADBE8", "#FFC48A"]
 
+    # Priorizar "DATA CRIAÇÃO TICKET BR" se existir
+    candidatas = [c for c in ["DATA CRIAÇÃO TICKET BR","DATA_PGTO_SAP","DATA CRIAÇÃO TICKET","DATA CRIAÇÃO RC"] if c in filtrado.columns]
+    if len(candidatas) == 0:
+        candidatas = ["(indisponível)"]
+
     col_a, col_b, col_c, col_d = st.columns(4)
     with col_a:
         eixo = st.selectbox("Eixo de análise", ["MÊS", "PROJETO", "COORDENADOR"], index=0)
     with col_b:
-        ref_data_col = st.selectbox(
-            "Coluna de referência (para MÊS)",
-            options=[c for c in ["DATA_PGTO_SAP","DATA CRIAÇÃO TICKET BR","DATA CRIAÇÃO TICKET","DATA CRIAÇÃO RC"] if c in filtrado.columns] or ["(indisponível)"]
-        )
+        ref_data_col = st.selectbox("Coluna de referência (para MÊS)", options=candidatas, index=0)
     with col_c:
         ordenar_por = st.selectbox("Ordenar por", ["QTD_TICKETS","VALOR A PAGAR","VALOR RC","VALOR BI"], index=0)
     with col_d:
-        excluir_nulos_eixo = st.checkbox("Excluir nulos do gráfico (eixo)", value=False)
+        excluir_nulos_eixo = st.checkbox("Excluir nulos do gráfico (eixo)", value=True)  # default marcado
 
     try:
         agreg = agregar(
